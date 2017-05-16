@@ -96,15 +96,32 @@ class FeatureExtraction(TransformerMixin):
             g = greycomatrix(gambar_gray, [1], [0], normed=True)
             
             mean_merah = gambar_merah.mean()
+            std_merah = gambar_merah.std()
+
             mean_hijau = gambar_hijau.mean()
+            std_hijau = gambar_hijau.std()
+
             mean_biru = gambar_biru.mean()
+            std_biru = gambar_biru.std()
+
             mean_gray = gambar_gray.mean()
+            std_gray = gambar_gray.std()
+            mag_gray = (np.sum(gambar_gray))/mean_gray
+
             homogenity_gajah = greycoprops(g, 'homogeneity')[0][0]
             energy_gajah = greycoprops(g, 'energy')[0][0]
             contrast_gajah = greycoprops(g, 'contrast')[0][0]
-            
-            list_fitur = [mean_merah, mean_hijau, mean_biru, mean_gray,
-                         homogenity_gajah, energy_gajah, contrast_gajah]
+            dissimilarity_gajah = greycoprops(g, 'dissimilarity')[0][0]
+            correlation_gajah = greycoprops(g, 'correlation')[0][0]	
+
+            rg_corr = np.corrcoef(gambar_merah, gambar_hijau)[0][1]
+            rb_corr = np.corrcoef(gambar_merah, gambar_biru)[0][1]
+            gb_corr = np.corrcoef(gambar_hijau, gambar_biru)[0][1]
+
+            entropy = metrics.cluster.entropy(g)
+
+            list_fitur = [mean_merah, std_merah ,mean_hijau, std_hijau ,mean_biru, std_biru ,mean_gray, std_gray,
+                         mag_gray, homogenity_gajah, energy_gajah, contrast_gajah, rg_corr, rb_corr, gb_corr, entropy, dissimilarity_gajah, correlation_gajah]
             
             list_list_fitur.append(list_fitur)
         
@@ -118,13 +135,10 @@ hasil_fitur_ekstraksi = fiturEks.fit_transform(dataset['image'])
 type(hasil_fitur_ekstraksi)
 # print(hasil_fitur_ekstraksi.shape)
 
-# membuat Dataframe
-df = pd.DataFrame(hasil_fitur_ekstraksi, columns=['mean_merah','mean_hijau',
-                                                 'mean_biru','mean_gray',
-                                                 'homogenity','energy',
-                                                 'contrast'])
+# MEMBUAT DATAFRAME
+df = pd.DataFrame(hasil_fitur_ekstraksi, columns=['mean_merah', 'std_merah' ,'mean_hijau', 'std_hijau' ,'mean_biru', 'std_biru' ,'mean_gray', 'std_gray', 'mag_gray', 'homogenity_gajah', 'energy_gajah', 'contrast_gajah', 'rg_corr', 'rb_corr', 'gb_corr', 'entropy', 'dissimilarity_gajah', 'correlation_gajah'])
 df['nama'] = dataset['nama']
-# print(df)
+#print(df)
 
 def apakah_macan_panda_gajah(x):
     if "tiger" in x: #klo gajah ada di string x
@@ -135,7 +149,9 @@ def apakah_macan_panda_gajah(x):
         return 0
 
 df['label'] = df['nama'].apply(lambda x: apakah_macan_panda_gajah(x))
+# df.to_csv('frame1.csv',index=False)
 
+# FEATURE SELECTION
 X = df.iloc[:,0:7].get_values()
 y = df['label'].get_values()
 clf = ExtraTreesClassifier()
@@ -145,43 +161,41 @@ clf.feature_importances_
 model = SelectFromModel(clf, prefit=True)
 X_new = model.transform(X)
 X_new.shape               
-
 # print(X_new.shape)
 
-# Menggunakan Algoritma ML dalam pembuatan model
+# MENGGUNAKAN ALGORITTMA ML DALAM PEMBUATAN MODEL
 clf = DecisionTreeClassifier(random_state=666)
 clf.fit(X_new, y)
 clf.score(X_new, y)
 
-# Prediksi gambar
-clf.predict(X_new[10])
-# print(y[10])
 tree.export_graphviz(clf,out_file="tree.dot")
 
-# Validasi dengan 10 fold cross validation
+# VALIDASI DGN MELAKUKAN 10-FOLD CROSS VALIDATION
 predicted = cross_val_predict(clf, X_new, y, cv=10)
 # print(metrics.accuracy_score(y, predicted))
 clf.fit(X_new, y)
 
-pipe_dt = Pipeline([('bebas nama ini',FeatureExtraction()),
-                    ('ftr_slc', SelectFromModel(ExtraTreesClassifier())),
-                   ('dt_id3', DecisionTreeClassifier(criterion='entropy',random_state=666))])
+# MEMBUAT MODELNYA
+pipe_dt = Pipeline([('bebas nama ini',FeatureExtraction()), ('ftr_slc', SelectFromModel(ExtraTreesClassifier())), ('dt_id3', DecisionTreeClassifier(criterion='entropy',random_state=666))])
 pipe_dt.fit(dataset['image'],y)
 predicted = cross_val_predict(pipe_dt, dataset['image'], y, cv=10)
-akurasi = metrics.accuracy_score(y,predicted)
+akurasicv = metrics.accuracy_score(y,predicted)
 
+# FITUR PIXEL GAMBAR
 clf2 = DecisionTreeClassifier(criterion='entropy', random_state=666)
 X_pixel = dataset['resize_image']
 fitness = clf2.fit(X_pixel, y)
 skor =clf2.score(X_pixel, y)
 
-# print(akurasi)
+# print(akurasicv)
 # print(fitness)
 # print(skor)
 
 predicted = cross_val_predict(clf2, X_pixel, y, cv=10)
 # print(metrics.accuracy_score(y, predicted))
 
+
+# SIMPAN MODEL DGN PICKLE
 pickle.dump(pipe_dt, open("DecisionTreeClasifier22.p","wb"))
 a = 5
 pickle.dump(a, open("a.p","wb"))
